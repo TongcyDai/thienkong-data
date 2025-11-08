@@ -1,0 +1,120 @@
+{
+  "total": 9,
+  "entries": [
+    {
+      "id": "entry_000000",
+      "type": "headword",
+      "pronunciation": {
+        "original": "a"
+      },
+      "characters": [],
+      "create_character_entries": true
+    },
+    {
+      "id": "entry_000001",
+      "type": "headword",
+      "pronunciation": {
+        "original": "pā"
+      },
+      "characters": [],
+      "create_character_entries": true
+    },
+    {
+      "id": "entry_000002",
+      "type": "headword",
+      "pronunciation": {
+        "original": "pa̱"
+      },
+      "characters": [
+        "帕",
+        "怕",
+        "袙",
+        "帊",
+        "跁",
+        "罷"
+      ],
+      "create_character_entries": true
+    },
+    {
+      "id": "entry_000003",
+      "type": "character",
+      "pronunciation": {
+        "original": "pa̱"
+      },
+      "character": "帕",
+      "classical_notes": "普駕切，音怕。廣韻：額首飾。",
+      "literary_reading": null,
+      "vernacular_reading": null,
+      "definitions": [
+        {
+          "marker": "①",
+          "text": "方形的布巾，又作「巾仔」。",
+          "examples": [
+            "手帕、面帕、洗身帕。"
+          ],
+          "inline_notes": []
+        }
+      ]
+    },
+    {
+      "id": "entry_000004",
+      "type": "character",
+      "pronunciation": {
+        "original": "pa̱"
+      },
+      "character": "怕",
+      "classical_notes": null,
+      "literary_reading": null,
+      "vernacular_reading": null,
+      "definitions": []
+    },
+    {
+      "id": "entry_000005",
+      "type": "character",
+      "pronunciation": {
+        "original": "pa̱"
+      },
+      "character": "袙",
+      "classical_notes": null,
+      "literary_reading": null,
+      "vernacular_reading": null,
+      "definitions": []
+    },
+    {
+      "id": "entry_000006",
+      "type": "character",
+      "pronunciation": {
+        "original": "pa̱"
+      },
+      "character": "帊",
+      "classical_notes": null,
+      "literary_reading": null,
+      "vernacular_reading": null,
+      "definitions": []
+    },
+    {
+      "id": "entry_000007",
+      "type": "character",
+      "pronunciation": {
+        "original": "pa̱"
+      },
+      "character": "跁",
+      "classical_notes": null,
+      "literary_reading": null,
+      "vernacular_reading": null,
+      "definitions": []
+    },
+    {
+      "id": "entry_000008",
+      "type": "character",
+      "pronunciation": {
+        "original": "pa̱"
+      },
+      "character": "罷",
+      "classical_notes": null,
+      "literary_reading": null,
+      "vernacular_reading": null,
+      "definitions": []
+    }
+  ]
+}
