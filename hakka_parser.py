@@ -15,7 +15,7 @@ from pathlib import Path
 class HakkaParser:
     def __init__(self):
         self.entries = []
-        self.current_id = 0
+        self.current_id = 1
         
     def load_html(self, html_path):
         """載入HTML文件"""
@@ -428,7 +428,7 @@ class HakkaParser:
             })
         
         entry = {
-            'id': f'entry_{self.current_id:06d}',
+            'id': str(self.current_id),
             'type': 'syllable_intro',
             'syllable': syllable,
             'description': sections[0]['text'] if sections and not sections[0]['marker'] else description,
@@ -477,7 +477,7 @@ class HakkaParser:
         characters = [c for c in characters if c not in seen and not seen.add(c)]
         
         entry = {
-            'id': f'entry_{self.current_id:06d}',
+            'id': str(self.current_id),
             'type': 'headword',
             'pronunciation': {
                 'original': pronunciation
@@ -957,7 +957,7 @@ class HakkaParser:
         
         # 11. 創建詞條資料
         entry = {
-            'id': f'entry_{self.current_id:06d}',
+            'id': str(self.current_id),
             'type': 'word',
             'pronunciation': {
                 'original': pronunciation
@@ -1007,7 +1007,7 @@ class HakkaParser:
                     if entry.get('create_character_entries'):
                         for char in entry['characters']:
                             char_entry = {
-                                'id': f'entry_{self.current_id:06d}',
+                                'id': str(self.current_id),
                                 'type': 'character',
                                 'pronunciation': {
                                     'original': current_pronunciation
@@ -1056,7 +1056,7 @@ class HakkaParser:
                         pending_character_entry = self.entries[existing_idx]
                     else:
                         # 沒有找到基礎entry，創建新的（可能是沒有headword的獨立字）
-                        entry['id'] = f'entry_{self.current_id:06d}'
+                        entry['id'] = str(self.current_id)
                         self.current_id += 1
                         self.entries.append(entry)
                         pending_character_entry = entry
