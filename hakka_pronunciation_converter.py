@@ -819,15 +819,19 @@ class HakkaPronunciationConverter:
         parts = re.split(r'(\s+|[(),.:;—]+)', numbered)
 
         syllables_data = []  # (IPA聲母, IPA韻母, 原調, 原numbered音節)
-        has_punct_before = [False]  # 記錄每個音節前是否有標點
+        has_punct_before = [False]  # 記錄每個音節前是否有標點（不包括空格）
 
         for part in parts:
             if not part:
                 continue
 
-            # 判斷是否為標點或空格
-            if re.match(r'^[\s(),.:;—]+$', part):
-                # 標點/空格：下一個音節前標記為有標點
+            # 判斷是否為空格（空格不阻斷變調）
+            if re.match(r'^\s+$', part):
+                continue  # 跳過空格，不標記為有標點
+
+            # 判斷是否為標點符號（標點符號會阻斷變調）
+            if re.match(r'^[(),.:;—]+$', part):
+                # 標點符號：下一個音節前標記為有標點
                 if syllables_data:
                     # 已經有音節了，下一個會有標點分隔
                     has_punct_before.append(True)
