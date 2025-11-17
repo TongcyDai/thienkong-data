@@ -113,6 +113,26 @@ class HakkaPronunciationConverter:
         '5': '\u0300',  # ` grave
         '8': '\u030D',  # ̍ vertical line above
     }
+
+    # IPA 聲母轉換表（四縣、海陸共用）
+    IPA_INITIAL_MAP = {
+        'b': 'p', 'p': 'pʰ', 'm': 'm', 'f': 'f', 'v': 'v', 'bb': 'b',
+        'd': 't', 't': 'tʰ', 'n': 'n', 'l': 'l',
+        'g': 'k', 'k': 'kʰ', 'ng': 'ŋ', 'h': 'h', 'gg': 'g',
+        'z': 't͡s', 'c': 't͡sʰ', 's': 's', 'zz': 'z',
+        'j': 't͡ɕ', 'q': 't͡ɕʰ', 'x': 'ɕ',
+        'zh': 't͡ʃ', 'ch': 't͡ʃʰ', 'sh': 'ʃ', 'rh': 'ʒ',
+    }
+
+    # 四縣話聲調調值
+    SIYEN_TONE_VALUES = {
+        '1': '²⁴', '2': '³¹', '3': '⁵⁵', '4': '²', '5': '¹¹', '8': '⁵'
+    }
+
+    # 海陸話聲調調值
+    HOILIUK_TONE_VALUES = {
+        '1': '⁵³', '2': '²⁴', '3': '¹¹', '4': '⁵', '5': '⁵⁵', '7': '³³', '8': '²'
+    }
     
     def __init__(self, dialect: str):
         """
@@ -235,14 +255,18 @@ class HakkaPronunciationConverter:
     
     def _convert_final(self, syllable: str) -> str:
         """
-        轉換韻尾 p/t/k → b/d/g
-        
+        轉換韻尾 p/t/k → b/d/g, ⁿ → nn
+
         Args:
             syllable: 音節
-            
+
         Returns:
             轉換後的音節
         """
+        # 先處理鼻化韻尾 ⁿ → nn
+        syllable = syllable.replace('ⁿ', 'nn')
+
+        # 再處理入聲韻尾 p/t/k → b/d/g
         if self._has_checked_final(syllable):
             final = syllable[-1]
             return syllable[:-1] + self.CONVERTED_FINALS[final]
@@ -295,69 +319,121 @@ class HakkaPronunciationConverter:
         
         return converted_initial + converted_rhyme + tone
     
+    def _separate_syllable_and_punctuation(self, token: str) -> Tuple[str, str, str]:
+        """
+        分離音節和標點符號
+
+        Args:
+            token: 可能包含標點的音節
+
+        Returns:
+            (前置標點, 音節, 後置標點)
+        """
+        import re
+
+        leading_punct = ''
+        trailing_punct = ''
+        syllable = token
+
+        # 提取尾部標點
+        match = re.search(r'([(),.:;—]+)$', syllable)
+        if match:
+            trailing_punct = match.group(1)
+            syllable = syllable[:match.start()]
+
+        # 提取開頭標點（較少見）
+        match = re.search(r'^([(),.:;—]+)', syllable)
+        if match:
+            leading_punct = match.group(1)
+            syllable = syllable[match.end():]
+
+        return leading_punct, syllable, trailing_punct
+
     def convert_pronunciation(self, original: str) -> str:
         """
         轉換完整的發音字符串
-        
+
         Args:
             original: 原書拼音
-            
+
         Returns:
             調號式客語拼音
         """
         if not original:
             return ""
-        
-        # 分割音節（以空格分隔）
-        syllables = original.split()
-        
-        # 轉換每個音節
-        converted_syllables = [self.convert_syllable(syl) for syl in syllables]
-        
-        return ' '.join(converted_syllables)
+
+        import re
+
+        # 先將 -- 統一轉為 em-dash（向後兼容）
+        original = original.replace('--', '—')
+
+        # 使用正則表達式分割，同時保留標點符號和空格
+        # 分割模式：標點符號或空格
+        parts = re.split(r'(\s+|[(),.:;—]+)', original)
+
+        # 轉換每個部分
+        converted_parts = []
+        for part in parts:
+            if not part:
+                continue
+            # 判斷是否為標點符號或空格
+            if re.match(r'^[\s(),.:;—]+$', part):
+                # 標點或空格，保持原樣
+                converted_parts.append(part)
+            else:
+                # 音節，進行轉換
+                converted = self.convert_syllable(part)
+                converted_parts.append(converted)
+
+        return ''.join(converted_parts)
     
     def numbered_to_marked(self, numbered: str) -> str:
         """
         將調號式客語拼音轉換為調型式客語拼音
-        
+
         Args:
             numbered: 調號式客語拼音
-            
+
         Returns:
             調型式客語拼音
         """
         if not numbered:
             return ""
-        
+
+        import re
+
         # 選擇調型符號對應表
         tone_marks = self.SIYEN_TONE_MARKS if self.dialect == 'siyen' else self.HOILIUK_TONE_MARKS
-        
-        # 分割音節
-        syllables = numbered.split()
-        marked_syllables = []
-        
-        for syllable in syllables:
-            # 提取調號（最後一個字符應該是數字）
-            if not syllable:
-                marked_syllables.append(syllable)
+
+        # 使用正則表達式分割，同時保留標點符號和空格
+        parts = re.split(r'(\s+|[(),.:;—]+)', numbered)
+
+        # 轉換每個部分
+        converted_parts = []
+        for part in parts:
+            if not part:
                 continue
-            
-            if syllable[-1].isdigit():
-                tone_number = syllable[-1]
-                base = syllable[:-1]
-                
-                # 獲取調型符號
-                tone_mark = tone_marks.get(tone_number, '')
-                
-                # 調型符號放在音節最後面
-                marked = base + tone_mark
-                
-                marked_syllables.append(marked)
+            # 判斷是否為標點符號或空格
+            if re.match(r'^[\s(),.:;—]+$', part):
+                # 標點或空格，保持原樣
+                converted_parts.append(part)
             else:
-                # 沒有調號，保持原樣
-                marked_syllables.append(syllable)
-        
-        return ' '.join(marked_syllables)
+                # 音節，轉換聲調標記
+                if part and part[-1].isdigit():
+                    tone_number = part[-1]
+                    base = part[:-1]
+
+                    # 獲取調型符號
+                    tone_mark = tone_marks.get(tone_number, '')
+
+                    # 調型符號放在音節最後面
+                    marked = base + tone_mark
+                    converted_parts.append(marked)
+                else:
+                    # 沒有調號，保持原樣
+                    converted_parts.append(part)
+
+        return ''.join(converted_parts)
     
     def _convert_pfs_nucleus(self, nucleus: str) -> str:
         """
@@ -456,97 +532,362 @@ class HakkaPronunciationConverter:
     def numbered_to_pfs(self, numbered: str) -> str:
         """
         將調號式客語拼音轉換為白話字（僅四縣）
-        
+
         Args:
             numbered: 調號式客語拼音
-            
+
         Returns:
             白話字（Pha̍k-fa-sṳ）
         """
         if not numbered:
             return ""
-        
+
         if self.dialect != 'siyen':
             # 海陸腔暫時不支援白話字轉換
             return ""
-        
-        # 分割音節
-        syllables = numbered.split()
-        pfs_syllables = []
-        
-        for syllable in syllables:
-            if not syllable:
+
+        import re
+
+        # 先將 -- 統一轉為 em-dash（向後兼容）
+        numbered = numbered.replace('--', '—')
+
+        # 使用正則表達式分割，同時保留標點符號和空格
+        parts = re.split(r'(\s+|[(),.:;—]+)', numbered)
+
+        # 處理每個部分
+        pfs_parts = []  # 儲存 (類型, 內容) 元組
+        for part in parts:
+            if not part:
                 continue
-            
-            # 提取調號（最後一個字符應該是數字）
-            if syllable[-1].isdigit():
-                tone_number = syllable[-1]
-                base = syllable[:-1]
+
+            # 判斷是否為標點符號
+            if re.match(r'^[(),.:;—]+$', part):
+                pfs_parts.append(('punct', part))
+            # 跳過空格（pfs 不需要保留空格，音節間用連字號連接）
+            elif re.match(r'^\s+$', part):
+                continue
             else:
-                # 沒有調號，視為第3調
-                tone_number = '3'
-                base = syllable
-            
-            # 特殊處理：只有鼻音韻尾的情況（m, n, ng）
-            if base in ['m', 'n', 'ng']:
-                pfs_base = base
-                # 找到標記位置
-                if base == 'ng':
-                    tone_target = (0, 'n')  # ng 標在 n 上
+                # 音節，轉換為 pfs
+                # 提取調號（最後一個字符應該是數字）
+                if part[-1].isdigit():
+                    tone_number = part[-1]
+                    base = part[:-1]
                 else:
-                    tone_target = (0, base[0])
-                
-                # 標記聲調
-                pfs_syllable = self._apply_pfs_tone_mark(pfs_base, tone_target, tone_number)
-                pfs_syllables.append(pfs_syllable)
-                continue
-            
-            # 拆分聲母和韻母
-            initial, rhyme = self._split_syllable(base)
-            
-            # 轉換聲母
-            pfs_initial = self.PFS_INITIAL_MAP.get(initial, initial) if initial else ''
-            
-            # 檢查韻尾
-            has_ending = len(rhyme) > 0 and rhyme[-1] in ['b', 'd', 'g', 'm', 'n']
-            # 特殊處理 ng 韻尾
-            if len(rhyme) >= 2 and rhyme[-2:] == 'ng':
-                ending = 'ng'
-                nucleus = rhyme[:-2]
-            elif has_ending:
-                ending = rhyme[-1]
-                nucleus = rhyme[:-1]
-            else:
-                ending = ''
-                nucleus = rhyme
-            
-            # 轉換韻腹
-            pfs_nucleus = self._convert_pfs_nucleus(nucleus)
-            
-            # 如果沒有聲母且韻母以 i 開頭，特殊處理
-            if not initial and pfs_nucleus.startswith('i'):
-                pfs_nucleus = self._handle_initial_i_pfs(pfs_nucleus)
-            
-            # 轉換韻尾
-            pfs_ending = self.PFS_ENDING_MAP.get(ending, ending) if ending else ''
-            
-            # 組合音節
-            pfs_base = pfs_initial + pfs_nucleus + pfs_ending
-            
-            # 找到標記聲調的位置
-            tone_target = self._find_pfs_tone_target(pfs_nucleus)
-            
-            # 調整位置（加上聲母長度）
-            adjusted_target = (tone_target[0] + len(pfs_initial), tone_target[1])
-            
-            # 標記聲調
-            pfs_syllable = self._apply_pfs_tone_mark(pfs_base, adjusted_target, tone_number)
-            
-            pfs_syllables.append(pfs_syllable)
-        
-        # 用連字號連接音節，並使用 NFC 正規化
-        result = '-'.join(pfs_syllables) if pfs_syllables else ""
+                    # 沒有調號，視為第3調
+                    tone_number = '3'
+                    base = part
+
+                # 特殊處理：只有鼻音韻尾的情況（m, n, ng）
+                if base in ['m', 'n', 'ng']:
+                    pfs_base = base
+                    # 找到標記位置
+                    if base == 'ng':
+                        tone_target = (0, 'n')  # ng 標在 n 上
+                    else:
+                        tone_target = (0, base[0])
+
+                    # 標記聲調
+                    pfs_syllable = self._apply_pfs_tone_mark(pfs_base, tone_target, tone_number)
+                    pfs_parts.append(('syllable', pfs_syllable))
+                else:
+                    # 拆分聲母和韻母
+                    initial, rhyme = self._split_syllable(base)
+
+                    # 轉換聲母
+                    pfs_initial = self.PFS_INITIAL_MAP.get(initial, initial) if initial else ''
+
+                    # 檢查韻尾
+                    # 特殊處理 nn 鼻化韻尾（轉為 ⁿ）
+                    if len(rhyme) >= 2 and rhyme[-2:] == 'nn':
+                        ending = 'ⁿ'
+                        nucleus = rhyme[:-2]
+                    # 特殊處理 ng 韻尾
+                    elif len(rhyme) >= 2 and rhyme[-2:] == 'ng':
+                        ending = 'ng'
+                        nucleus = rhyme[:-2]
+                    elif len(rhyme) > 0 and rhyme[-1] in ['b', 'd', 'g', 'm', 'n']:
+                        ending = rhyme[-1]
+                        nucleus = rhyme[:-1]
+                    else:
+                        ending = ''
+                        nucleus = rhyme
+
+                    # 轉換韻腹
+                    pfs_nucleus = self._convert_pfs_nucleus(nucleus)
+
+                    # 如果沒有聲母且韻母以 i 開頭，特殊處理
+                    if not initial and pfs_nucleus.startswith('i'):
+                        pfs_nucleus = self._handle_initial_i_pfs(pfs_nucleus)
+
+                    # 轉換韻尾
+                    pfs_ending = self.PFS_ENDING_MAP.get(ending, ending) if ending else ''
+
+                    # 組合音節
+                    pfs_base = pfs_initial + pfs_nucleus + pfs_ending
+
+                    # 找到標記聲調的位置
+                    tone_target = self._find_pfs_tone_target(pfs_nucleus)
+
+                    # 調整位置（加上聲母長度）
+                    adjusted_target = (tone_target[0] + len(pfs_initial), tone_target[1])
+
+                    # 標記聲調
+                    pfs_syllable = self._apply_pfs_tone_mark(pfs_base, adjusted_target, tone_number)
+
+                    pfs_parts.append(('syllable', pfs_syllable))
+
+        # 組合結果：音節間用連字號，標點前後不加連字號
+        result_parts = []
+        for i, (part_type, content) in enumerate(pfs_parts):
+            if part_type == 'syllable':
+                # 檢查前一個是否也是音節，是的話加連字號
+                if i > 0 and pfs_parts[i-1][0] == 'syllable':
+                    result_parts.append('-')
+                result_parts.append(content)
+            elif part_type == 'punct':
+                # 標點符號直接加入
+                result_parts.append(content)
+                # em-dash 後面不加空格，其他標點後面加空格
+                if i < len(pfs_parts) - 1 and content != '—':
+                    result_parts.append(' ')
+
+        result = ''.join(result_parts)
         return unicodedata.normalize('NFC', result)
+
+    def _convert_ipa_rhyme(self, rhyme: str) -> str:
+        """
+        轉換韻母為 IPA 形式
+
+        處理：
+        - ee → ɛ
+        - ii → ɨ
+        - oo → ɔ
+        - b/d/g 韻尾 → p̚/t̚/k̚
+        - ng → ŋ
+        - nn → 鼻化（在元音上加 ̃）
+        """
+        if not rhyme:
+            return ''
+
+        # 先處理二合元音（在處理韻尾之前）
+        rhyme = rhyme.replace('ee', 'ɛ')
+        rhyme = rhyme.replace('ii', 'ɨ')
+        rhyme = rhyme.replace('oo', 'ɔ')
+
+        # 處理鼻化韻尾 nn
+        if rhyme.endswith('nn'):
+            # 移除 nn，在所有元音上加鼻化符號
+            base = rhyme[:-2]
+            nasalized = ''
+            for char in base:
+                nasalized += char
+                if char in 'aeiouɛɨɔ':
+                    nasalized += '\u0303'  # combining tilde
+            return nasalized
+
+        # 處理 ng 韻尾
+        if rhyme.endswith('ng'):
+            return rhyme[:-2] + 'ŋ'
+
+        # 處理入聲韻尾 b/d/g
+        if rhyme.endswith('b'):
+            return rhyme[:-1] + 'p̚'
+        elif rhyme.endswith('d'):
+            return rhyme[:-1] + 't̚'
+        elif rhyme.endswith('g'):
+            return rhyme[:-1] + 'k̚'
+
+        return rhyme
+
+    def _parse_numbered_syllable(self, syllable: str) -> Tuple[str, str, str]:
+        """
+        解析 numbered 音節為 (聲母, 韻母, 聲調)
+
+        Args:
+            syllable: numbered 音節，例如 "sɨ1", "m5", "ngip8"
+
+        Returns:
+            (initial, rhyme, tone) 元組
+        """
+        if not syllable:
+            return '', '', ''
+
+        # 提取聲調（最後一個字符應該是數字）
+        if syllable[-1].isdigit():
+            tone = syllable[-1]
+            base = syllable[:-1]
+        else:
+            # 沒有聲調
+            return syllable, '', ''
+
+        # 嘗試匹配聲母
+        initial = ''
+        for init in self.INITIALS:
+            if base.startswith(init):
+                initial = init
+                break
+
+        # 韻母是剩餘部分
+        rhyme = base[len(initial):] if initial else base
+
+        return initial, rhyme, tone
+
+    def _is_syllabic_consonant(self, initial: str, rhyme: str) -> bool:
+        """
+        判斷是否為成音節（韻母為空，整個音節只有 m/n/ng + 聲調）
+        """
+        return rhyme == '' and initial in ['m', 'n', 'ng']
+
+    def _apply_sandhi(self, syllables_data: List[Tuple[str, str, str, str]], positions: List[int]) -> List[str]:
+        """
+        套用變調規則
+
+        Args:
+            syllables_data: 每個音節的 (IPA聲母, IPA韻母, 原調, 原numbered音節) 列表
+            positions: 每個音節在原始字串中的位置（用於判斷是否有標點分隔）
+
+        Returns:
+            每個音節的完整 IPA（含變調標記）
+        """
+        tone_values = self.SIYEN_TONE_VALUES if self.dialect == 'siyen' else self.HOILIUK_TONE_VALUES
+        result = []
+
+        for i, (ipa_initial, ipa_rhyme, tone, original_syllable) in enumerate(syllables_data):
+            base_tone_value = tone_values.get(tone, '')
+
+            # 判斷是否需要變調
+            sandhi_tone = None
+
+            # 檢查前一個音節（用於仔尾變調）
+            has_prev = i > 0
+            if has_prev and self.dialect == 'siyen':
+                prev_tone = syllables_data[i - 1][2]
+                # 規則2: 前字第2/4調 + 後字是 e2 → 後字讀如第5調
+                if prev_tone in ['2', '4'] and original_syllable == 'e2':
+                    sandhi_tone = self.SIYEN_TONE_VALUES['5']  # ¹¹
+
+            # 檢查是否有下一個音節（且中間沒有標點分隔）
+            has_next = i < len(syllables_data) - 1
+            if has_next and not sandhi_tone:  # 如果還沒有變調
+                next_tone = syllables_data[i + 1][2]
+                next_syllable = syllables_data[i + 1][3]
+
+                if self.dialect == 'siyen':
+                    # 四縣變調規則
+                    # 規則1: 前字第1調 + 後字第1/3/8調 → 前字讀如第5調
+                    if tone == '1' and next_tone in ['1', '3', '8']:
+                        sandhi_tone = self.SIYEN_TONE_VALUES['5']  # ¹¹
+
+                elif self.dialect == 'hoiliuk':
+                    # 海陸變調規則
+                    # 規則1: 前字第2調 → 前字讀如第7調
+                    if tone == '2':
+                        sandhi_tone = self.HOILIUK_TONE_VALUES['7']  # ³³
+
+                    # 規則2: 前字第4調 → 前字讀如第8調
+                    elif tone == '4':
+                        sandhi_tone = self.HOILIUK_TONE_VALUES['8']  # ²
+
+            # 組合音節
+            if sandhi_tone:
+                # 有變調：顯示 原調-變調
+                syllable_ipa = ipa_initial + ipa_rhyme + base_tone_value + '⁻' + sandhi_tone
+            else:
+                # 無變調
+                syllable_ipa = ipa_initial + ipa_rhyme + base_tone_value
+
+            result.append(syllable_ipa)
+
+        return result
+
+    def numbered_to_ipa(self, numbered: str) -> str:
+        """
+        將調號式客語拼音轉換為國際音標（IPA）
+
+        Args:
+            numbered: 調號式客語拼音
+
+        Returns:
+            國際音標，用 / / 包夾
+        """
+        if not numbered:
+            return ''
+
+        import re
+
+        # 使用正則表達式分割，保留標點和空格信息
+        parts = re.split(r'(\s+|[(),.:;—]+)', numbered)
+
+        syllables_data = []  # (IPA聲母, IPA韻母, 原調, 原numbered音節)
+        has_punct_before = [False]  # 記錄每個音節前是否有標點
+
+        for part in parts:
+            if not part:
+                continue
+
+            # 判斷是否為標點或空格
+            if re.match(r'^[\s(),.:;—]+$', part):
+                # 標點/空格：下一個音節前標記為有標點
+                if syllables_data:
+                    # 已經有音節了，下一個會有標點分隔
+                    has_punct_before.append(True)
+                continue
+
+            # 音節：解析並轉換
+            initial, rhyme, tone = self._parse_numbered_syllable(part)
+
+            # 轉換聲母
+            ipa_initial = self.IPA_INITIAL_MAP.get(initial, initial) if initial else ''
+
+            # 處理成音節（m, n, ng 沒有韻母）
+            if self._is_syllabic_consonant(initial, rhyme):
+                # 成音節：加上成音節符號
+                if initial == 'm':
+                    ipa_rhyme = 'm̩'  # m + U+0329
+                    ipa_initial = ''
+                elif initial == 'n':
+                    ipa_rhyme = 'n̩'  # n + U+0329
+                    ipa_initial = ''
+                elif initial == 'ng':
+                    ipa_rhyme = 'ŋ̍'  # ŋ + U+030D
+                    ipa_initial = ''
+            else:
+                # 一般音節：轉換韻母
+                ipa_rhyme = self._convert_ipa_rhyme(rhyme)
+
+            syllables_data.append((ipa_initial, ipa_rhyme, tone, part))
+
+            # 如果這是第一個音節後的音節，且前面沒有標點
+            if len(has_punct_before) == len(syllables_data):
+                has_punct_before.append(False)
+
+        # 套用變調規則（考慮標點分隔）
+        # 需要重新組織，按標點分組
+        groups = []
+        current_group = []
+        for i, data in enumerate(syllables_data):
+            if i < len(has_punct_before) and has_punct_before[i] and current_group:
+                # 前面有標點，開始新組
+                groups.append(current_group)
+                current_group = [data]
+            else:
+                current_group.append(data)
+
+        if current_group:
+            groups.append(current_group)
+
+        # 對每組套用變調
+        all_ipa_syllables = []
+        for group in groups:
+            ipa_syllables = self._apply_sandhi(group, [])
+            all_ipa_syllables.extend(ipa_syllables)
+
+        # 組合結果：用空格分隔
+        if all_ipa_syllables:
+            result = ' '.join(all_ipa_syllables)
+            return unicodedata.normalize('NFC', result)
+        else:
+            return ''
 
 
 def process_json_file(input_file: str, output_file: str, dialect: str):
@@ -585,21 +926,30 @@ def process_json_file(input_file: str, output_file: str, dialect: str):
     for entry in entries:
         if 'pronunciation' in entry and 'original' in entry['pronunciation']:
             original = entry['pronunciation']['original']
-            
+
+            # 統一將 -- 轉為 em-dash（更新 original）
+            original = original.replace('--', '—')
+            entry['pronunciation']['original'] = original
+
             # 轉換為調號式客語拼音
             numbered = converter.convert_pronunciation(original)
             entry['pronunciation']['numbered'] = numbered
-            
+
             # 轉換為調型式客語拼音
             marked = converter.numbered_to_marked(numbered)
             entry['pronunciation']['marked'] = marked
-            
+
             # 轉換為白話字（僅四縣）
             if dialect == 'siyen':
                 pfs = converter.numbered_to_pfs(numbered)
                 if pfs:  # 只有成功轉換時才添加
                     entry['pronunciation']['pfs'] = pfs
-            
+
+            # 轉換為國際音標
+            ipa = converter.numbered_to_ipa(numbered)
+            if ipa:  # 只有成功轉換時才添加
+                entry['pronunciation']['ipa'] = ipa
+
             processed_count += 1
             
             # 顯示進度（每100個）

@@ -101,5 +101,5 @@ def translate_pua_to_standard(input_file, output_file):
 
 # Example usage
 if __name__ == "__main__":
-    # translate_pua_to_standard('hailiuk_raw.html', 'hailiuk_new.html')
-    translate_pua_to_standard('siyen_raw.html', 'siyen_new.html')
+    translate_pua_to_standard('hoiliuk_raw.html', 'hoiliuk_new.html')
+    # translate_pua_to_standard('siyen_raw.html', 'siyen_new.html')

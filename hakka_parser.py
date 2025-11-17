@@ -23,14 +23,37 @@ class HakkaParser:
             content = f.read()
         return BeautifulSoup(content, 'html.parser')
     
+    def fix_nasal_tones(self, text):
+        """
+        修正鼻音上的聲調標記
+        原書使用 n` 和 m` 表示帶重音符號的 n 和 m
+        轉換為正確的 Unicode 形式：
+        - n` → ǹ (n + combining grave accent)
+        - m` → m̀ (m + combining grave accent)
+        """
+        # 替換 n` 為 ǹ
+        text = text.replace('n`', 'n\u0300')  # n + combining grave accent
+        # 替換 m` 為 m̀
+        text = text.replace('m`', 'm\u0300')  # m + combining grave accent
+        return text
+
     def extract_text_with_underline(self, element):
         """
         提取文本，保留下劃線標記
         例如：c<u>o</u>n → co̱n
+
+        注意：會跳過浮動框元素（style 包含 float 的 span）
         """
         if isinstance(element, NavigableString):
             return str(element)
-        
+
+        # 跳過浮動框元素
+        if element.name == 'span':
+            style = element.get('style', '')
+            # 檢查是否包含 float 樣式（可能有空格變化：float:left 或 float: left）
+            if 'float' in style.lower():
+                return ''  # 跳過這個浮動框及其內部所有內容
+
         text = ""
         for child in element.children:
             if child.name == 'u':
@@ -40,6 +63,9 @@ class HakkaParser:
                 text += str(child)
             else:
                 text += self.extract_text_with_underline(child)
+
+        # 修正鼻音聲調標記
+        text = self.fix_nasal_tones(text)
         return text
     
     def clean_whitespace(self, text):
@@ -148,18 +174,19 @@ class HakkaParser:
         """清理拼音"""
         # 先清理 \n\t
         pron = self.clean_whitespace(pron)
-        
+
         # 移除多餘空白
         pron = re.sub(r'\s+', ' ', pron).strip()
-        
-        # 移除非拼音字符（保留字母、聲調符號、空格、下劃線）
-        # 移除 --、／等符號
-        pron = re.sub(r'-{2,}', '', pron)  # 移除--
-        pron = re.sub(r'[／/]', '', pron)  # 移除斜線
-        
+
+        # 將 -- 替換為 em-dash —
+        pron = pron.replace('--', '—')
+
+        # 移除斜線
+        pron = re.sub(r'[／/]', '', pron)
+
         # 再次清理空白
         pron = re.sub(r'\s+', ' ', pron).strip()
-        
+
         return pron
     
     # def create_searchable_pronunciation(self, pron):
@@ -1112,24 +1139,32 @@ class HakkaParser:
         在保存前統一清理所有文本欄位中的 \\n\\t 並標準化空格
         遍歷所有 entries，清理所有字符串類型的值
         """
-        def clean_value(value):
+        def clean_value(value, is_pronunciation=False):
             """遞歸清理值"""
             if isinstance(value, str):
                 # 先清理 \n\t，再標準化空格
                 value = self.clean_whitespace(value)
                 value = self.normalize_spaces(value)
+                # 如果不是 pronunciation 欄位，將 -- 轉為中文破折號
+                if not is_pronunciation:
+                    value = value.replace('--', '──')
                 return value
             elif isinstance(value, dict):
-                return {k: clean_value(v) for k, v in value.items()}
+                return {k: clean_value(v, k == 'pronunciation') for k, v in value.items()}
             elif isinstance(value, list):
                 return [clean_value(item) for item in value]
             else:
                 return value
-        
+
         print("\n清理文本中的 \\n\\t 並標準化空格...")
         for entry in self.entries:
             for key, value in entry.items():
-                entry[key] = clean_value(value)
+                # pronunciation 是特殊的字典結構，需要特別處理
+                if key == 'pronunciation' and isinstance(value, dict):
+                    # pronunciation 字典內的值不轉換 --（已經在 clean_pronunciation 中處理）
+                    entry[key] = {k: clean_value(v, is_pronunciation=True) for k, v in value.items()}
+                else:
+                    entry[key] = clean_value(value, is_pronunciation=False)
         print("清理完成")
     
     def save_json(self, output_path):
